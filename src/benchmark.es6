@@ -1,4 +1,5 @@
 import Benchmark from 'benchmark';
+import async from 'async';
 import nock from 'nock';
 
 // Import libs to benchmark
@@ -15,61 +16,83 @@ export default function benchmark() {
   global.Qouch = Qouch;
   global.nock = nock;
 
-  // Set up the test suite.
-  let suite = new Benchmark.Suite();
+  // Whitelist of methods to benchmark. CouchPromised and Qouch share the same
+  // method names.
+  let methods = [
+    'get',
+  ];
 
-  suite
-  .add('CouchPromised', testCouchPromised, {
-    defer: true,
-  })
-  .add('Qouch', testQouch, {
-    defer: true,
-  })
-  .on('cycle', ( e ) => console.log(e.target.toString()))
-  .on('complete', function () {
-
-    let fastest = this.filter('fastest');
-    let slowest = this.filter('slowest')[ 0 ];
-
-    // If Benchmark determined there was not a significant difference between
-    // the performance of the tests it will say more than one test was the
-    // "fastest".
-    if ( fastest.length > 1 ) {
-      return console.log('No statistically significant difference.');
-    }
-
-    // If Benchmark determined that one test was significantly faster we can
-    // work out the percentage increase.
-    fastest = fastest[ 0 ];
-    let diff = ( ( fastest.hz - slowest.hz ) / slowest.hz ) * 100;
-    console.log(`${ fastest.name } was ${ Math.ceil(diff) }% faster.`);
-  })
-  .run();
-
-  // Set up the test functions themselves.
-  function testCouchPromised( deferred ) {
-
-    let couch = new global.CouchPromised({
+  // Set up the test functions themselves. We configure some default options
+  // that are passed into the library constructors.
+  let couchPromisedOptions = [
+    {
       path: '/test',
-    });
+    },
+  ];
 
-    global.nock('http://127.0.0.1:5984')
-    .get('/test/1')
-    .reply(200, { _id: 1, _rev: 1 });
+  let qouchOptions = [
+    'http://127.0.0.1:5984/test',
+  ];
 
-    couch.get('1')
-    .then(deferred.resolve.bind(deferred));
-  }
+  let tests = {
+    'CouchPromised#get': testGet(global.CouchPromised, couchPromisedOptions),
+    'Qouch#get': testGet(global.Qouch, qouchOptions),
+  };
 
-  function testQouch( deferred ) {
+  // Run tests for each method in series. Running them in parallel will make it
+  // hard to output useful information.
+  async.eachSeries(methods, ( method, done ) => {
 
-    let qouch = new global.Qouch('http://127.0.0.1:5984/test');
+    // Set up a test suite for the next method.
+    let suite = new Benchmark.Suite(`#${ method }`);
+    console.log(`\nTesting the \'${ method }\' method':`);
 
-    global.nock('http://127.0.0.1:5984')
-    .get('/test/1')
-    .reply(200, { _id: 1, _rev: 1 });
+    // Add a test for each library, add listeners for the test events and then
+    // run the tests.
+    suite
+    .add(`CouchPromised#${ method }`, tests[ `CouchPromised#${ method }` ], {
+      defer: true,
+    })
+    .add(`Qouch#${ method }`, tests[ `Qouch#${ method }` ], {
+      defer: true,
+    })
+    .on('cycle', ( e ) => console.log(`\t${ e.target.toString() }`))
+    .on('complete', function () {
 
-    qouch.get('1')
-    .then(deferred.resolve.bind(deferred));
+      let fastest = this.filter('fastest');
+      let slowest = this.filter('slowest')[ 0 ];
+
+      // If Benchmark determined there was not a significant difference between
+      // the performance of the tests it will say more than one test was the
+      // "fastest".
+      if ( fastest.length > 1 ) {
+        return console.log('\n\tNo statistically significant difference.');
+      }
+
+      // If Benchmark determined that one test was significantly faster we can
+      // work out the percentage increase.
+      fastest = fastest[ 0 ];
+      let diff = ( ( fastest.hz - slowest.hz ) / slowest.hz ) * 100;
+      console.log(`\n\t${ fastest.name } was ${ Math.ceil(diff) }% faster.`);
+
+      done();
+    })
+    .run();
+  });
+
+  // Test a CouchDB 'get' method. The 'get' method should return a single
+  // document by ID.
+  function testGet( Lib, args ) {
+    return ( deferred ) => {
+
+      let couch = new (Lib.bind.apply(Lib, [ null ].concat(args)))();
+
+      global.nock('http://127.0.0.1:5984')
+      .get('/test/1')
+      .reply(200, { _id: 1, _rev: 1 });
+
+      couch.get('1')
+      .then(deferred.resolve.bind(deferred));
+    };
   }
 }
