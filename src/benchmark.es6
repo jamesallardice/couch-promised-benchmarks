@@ -24,6 +24,7 @@ export default function benchmark() {
     'insert',
     'update',
     'view',
+    'viewDocs',
   ];
 
   // Set up the test functions themselves. We configure some default options
@@ -53,6 +54,9 @@ export default function benchmark() {
 
     'CouchPromised#view': testView(global.CouchPromised, couchPromisedOptions),
     'Qouch#view': testView(global.Qouch, qouchOptions),
+
+    'CouchPromised#viewDocs': testViewDocs(global.CouchPromised, couchPromisedOptions),
+    'Qouch#viewDocs': testViewDocs(global.Qouch, qouchOptions),
   };
 
   // Run tests for each method in series. Running them in parallel will make it
@@ -171,6 +175,22 @@ export default function benchmark() {
 
       couch.view('d', 'v')
       .then(deferred.resolve.bind(deferred));
+    });
+  }
+
+  // The 'viewDocs' method should return the document associated with each row
+  // of a view query.
+  function testViewDocs( Lib, args ) {
+
+    return makeTest(Lib, args, ( couch, nock, deferred ) => {
+
+      nock.get('/test/_design/d/_view/v?reduce=false&include_docs=true')
+      .reply(200, {
+        rows: [ { id: 1, key: [ 2, 3, ], doc: { _id: 8, }, }, ],
+      });
+
+      couch.viewDocs('d', 'v')
+      .then(deferred.resolve.bind(deferred), ( err ) => console.log(err));
     });
   }
 
