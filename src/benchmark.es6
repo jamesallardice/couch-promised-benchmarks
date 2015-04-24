@@ -84,31 +84,29 @@ export default function benchmark() {
     .run();
   });
 
-  // Test a CouchDB 'get' method. The 'get' method should return a single
-  // document by ID.
+  //
+  // Test functions
+  //
+
+  // The 'get' method should return a single document by ID.
   function testGet( Lib, args ) {
-    return ( deferred ) => {
 
-      let couch = new (Lib.bind.apply(Lib, [ null ].concat(args)))();
+    return makeTest(Lib, args, ( couch, nock, deferred ) => {
 
-      global.nock('http://127.0.0.1:5984')
-      .get('/test/1')
+      nock.get('/test/1')
       .reply(200, { _id: 1, _rev: 1 });
 
       couch.get('1')
       .then(deferred.resolve.bind(deferred));
-    };
+    });
   }
 
-  // Test a CouchDB 'fetch' method. The 'fetch' method should return an array
-  // of documents by ID.
+  // The 'fetch' method should return an array of documents by ID.
   function testFetch( Lib, args ) {
-    return ( deferred ) => {
 
-      let couch = new (Lib.bind.apply(Lib, [ null ].concat(args)))();
+    return makeTest(Lib, args, ( couch, nock, deferred ) => {
 
-      global.nock('http://127.0.0.1:5984')
-      .post('/test/_all_docs?include_docs=true')
+      nock.post('/test/_all_docs?include_docs=true')
       .reply(200, {
         rows: [
           { id: 1, key: 1, doc: { _id: 1, }, },
@@ -117,7 +115,19 @@ export default function benchmark() {
       });
 
       couch.fetch([ 1, 2, ])
-      .then(deferred.resolve.bind(deferred), ( err ) => console.log(err));
-    };
+      .then(deferred.resolve.bind(deferred));
+    });
+  }
+
+  //
+  // Utility functions
+  //
+
+  function makeTest( Lib, args, fn ) {
+
+    let couch = new (Lib.bind.apply(Lib, [ null ].concat(args)))();
+    let nocked = global.nock('http://127.0.0.1:5984');
+
+    return ( deferred ) => fn(couch, nocked, deferred);
   }
 }
