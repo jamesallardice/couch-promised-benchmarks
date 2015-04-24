@@ -23,6 +23,7 @@ export default function benchmark() {
     'fetch',
     'insert',
     'update',
+    'view',
   ];
 
   // Set up the test functions themselves. We configure some default options
@@ -49,6 +50,9 @@ export default function benchmark() {
 
     'CouchPromised#update': testUpdate(global.CouchPromised, couchPromisedOptions),
     'Qouch#update': testUpdate(global.Qouch, qouchOptions),
+
+    'CouchPromised#view': testView(global.CouchPromised, couchPromisedOptions),
+    'Qouch#view': testView(global.Qouch, qouchOptions),
   };
 
   // Run tests for each method in series. Running them in parallel will make it
@@ -151,6 +155,21 @@ export default function benchmark() {
       .reply(201, { id: 1, rev: 2 });
 
       couch.update({ _id: 1, _rev: 1 })
+      .then(deferred.resolve.bind(deferred));
+    });
+  }
+
+  // The 'view' method should return the rows returned by a view query.
+  function testView( Lib, args ) {
+
+    return makeTest(Lib, args, ( couch, nock, deferred ) => {
+
+      nock.get('/test/_design/d/_view/v')
+      .reply(200, {
+        rows: [ { id: 1, key: [ 2, 3, ], value: null, }, ],
+      });
+
+      couch.view('d', 'v')
       .then(deferred.resolve.bind(deferred));
     });
   }
