@@ -21,6 +21,8 @@ export default function benchmark() {
   let methods = [
     'get',
     'fetch',
+    'insert',
+    'update',
   ];
 
   // Set up the test functions themselves. We configure some default options
@@ -41,6 +43,12 @@ export default function benchmark() {
 
     'CouchPromised#fetch': testFetch(global.CouchPromised, couchPromisedOptions),
     'Qouch#fetch': testFetch(global.Qouch, qouchOptions),
+
+    'CouchPromised#insert': testInsert(global.CouchPromised, couchPromisedOptions),
+    'Qouch#insert': testInsert(global.Qouch, qouchOptions),
+
+    'CouchPromised#update': testUpdate(global.CouchPromised, couchPromisedOptions),
+    'Qouch#update': testUpdate(global.Qouch, qouchOptions),
   };
 
   // Run tests for each method in series. Running them in parallel will make it
@@ -115,6 +123,34 @@ export default function benchmark() {
       });
 
       couch.fetch([ 1, 2, ])
+      .then(deferred.resolve.bind(deferred));
+    });
+  }
+
+  // The 'insert' method should create a new document and return a subset of
+  // its keys.
+  function testInsert( Lib, args ) {
+
+    return makeTest(Lib, args, ( couch, nock, deferred ) => {
+
+      nock.post('/test')
+      .reply(201, { id: 1, rev: 1, });
+
+      couch.insert({})
+      .then(deferred.resolve.bind(deferred));
+    });
+  }
+
+  // The 'update' method should update an existing document and return a subset
+  // of its keys.
+  function testUpdate( Lib, args ) {
+
+    return makeTest(Lib, args, ( couch, nock, deferred ) => {
+
+      nock.put('/test/1')
+      .reply(201, { id: 1, rev: 2 });
+
+      couch.update({ _id: 1, _rev: 1 })
       .then(deferred.resolve.bind(deferred));
     });
   }
