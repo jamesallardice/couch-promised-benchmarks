@@ -20,6 +20,7 @@ export default function benchmark() {
   // method names.
   let methods = [
     'get',
+    'fetch',
   ];
 
   // Set up the test functions themselves. We configure some default options
@@ -37,6 +38,9 @@ export default function benchmark() {
   let tests = {
     'CouchPromised#get': testGet(global.CouchPromised, couchPromisedOptions),
     'Qouch#get': testGet(global.Qouch, qouchOptions),
+
+    'CouchPromised#fetch': testFetch(global.CouchPromised, couchPromisedOptions),
+    'Qouch#fetch': testFetch(global.Qouch, qouchOptions),
   };
 
   // Run tests for each method in series. Running them in parallel will make it
@@ -93,6 +97,27 @@ export default function benchmark() {
 
       couch.get('1')
       .then(deferred.resolve.bind(deferred));
+    };
+  }
+
+  // Test a CouchDB 'fetch' method. The 'fetch' method should return an array
+  // of documents by ID.
+  function testFetch( Lib, args ) {
+    return ( deferred ) => {
+
+      let couch = new (Lib.bind.apply(Lib, [ null ].concat(args)))();
+
+      global.nock('http://127.0.0.1:5984')
+      .post('/test/_all_docs?include_docs=true')
+      .reply(200, {
+        rows: [
+          { id: 1, key: 1, doc: { _id: 1, }, },
+          { id: 2, key: 2, doc: { _id: 2, }, },
+        ],
+      });
+
+      couch.fetch([ 1, 2, ])
+      .then(deferred.resolve.bind(deferred), ( err ) => console.log(err));
     };
   }
 }
