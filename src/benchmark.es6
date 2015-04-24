@@ -86,7 +86,8 @@ export default function benchmark() {
       // the performance of the tests it will say more than one test was the
       // "fastest".
       if ( fastest.length > 1 ) {
-        return console.log('\n\tNo statistically significant difference.');
+        console.log('\n\tNo statistically significant difference.');
+        return done();
       }
 
       // If Benchmark determined that one test was significantly faster we can
